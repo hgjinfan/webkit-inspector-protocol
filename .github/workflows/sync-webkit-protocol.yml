@@ -28,19 +28,18 @@ jobs:
 
       - name: Verify protocol directory exists
         run: |
-          if [ -d "webkit-repo/WebKit/Source/JavaScriptCore/inspector/protocol" ]; then
+          if [ -d "webkit-repo/Source/JavaScriptCore/inspector/protocol" ]; then
             echo "✓ Protocol directory found"
-            ls -la webkit-repo/WebKit/Source/JavaScriptCore/inspector/protocol/ | head -20
+            ls -la webkit-repo/Source/JavaScriptCore/inspector/protocol/ | head -20
           else
             echo "✗ Protocol directory not found"
-            find webkit-repo -type d -name "protocol" 2>/dev/null || true
             exit 1
           fi
 
       - name: Sync files to ./protocol
         run: |
           mkdir -p protocol
-          cp -r webkit-repo/WebKit/Source/JavaScriptCore/inspector/protocol/* protocol/
+          cp -r webkit-repo/Source/JavaScriptCore/inspector/protocol/* protocol/
           echo "✓ Files synced successfully"
           ls -la protocol/ | head -20
 
