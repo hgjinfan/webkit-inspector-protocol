@@ -4,6 +4,17 @@ on:
   schedule:
     - cron: '0 0 * * *'  # 每天 00:00 UTC
   workflow_dispatch:
+    inputs:
+      sync_protocol:
+        description: '同步 protocol 目录 (JavaScriptCore inspector protocol)'
+        required: false
+        type: boolean
+        default: true
+      sync_versions:
+        description: '同步 versions 目录 (WebInspectorUI Versions)'
+        required: false
+        type: boolean
+        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -14,6 +25,9 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      SYNC_PROTOCOL: ${{ github.event_name == 'schedule' || inputs.sync_protocol == true }}
+      SYNC_VERSIONS: ${{ github.event_name == 'schedule' || inputs.sync_versions == true }}
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4.2.0
@@ -25,41 +39,50 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Clone WebKit repository
+      - name: Determine sparse-checkout paths
+        id: paths
         run: |
-          git clone --depth 1 https://github.com/WebKit/WebKit.git webkit-repo
+          SPARSE_PATHS=""
+          if [ "$SYNC_PROTOCOL" = "true" ]; then
+            SPARSE_PATHS="Source/JavaScriptCore/inspector/protocol"
+          fi
+          if [ "$SYNC_VERSIONS" = "true" ]; then
+            SPARSE_PATHS="$SPARSE_PATHS Source/WebInspectorUI/Versions"
+          fi
+          echo "sparse_paths=$SPARSE_PATHS" >> "$GITHUB_OUTPUT"
+          echo "Sparse checkout paths: $SPARSE_PATHS"
 
-      - name: Verify protocol directories exist
+      - name: Clone WebKit repository (sparse checkout)
         run: |
-          echo "Checking protocol directories..."
-          if [ -d "webkit-repo/Source/JavaScriptCore/inspector/protocol" ]; then
-            echo "✓ JavaScriptCore protocol directory found"
-            ls -la webkit-repo/Source/JavaScriptCore/inspector/protocol/ | head -20
-          else
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/WebKit/WebKit.git webkit-repo
+          cd webkit-repo
+          git sparse-checkout set ${{ steps.paths.outputs.sparse_paths }}
+
+      - name: Verify and sync protocol files
+        if: env.SYNC_PROTOCOL == 'true'
+        run: |
+          if [ ! -d "webkit-repo/Source/JavaScriptCore/inspector/protocol" ]; then
             echo "✗ JavaScriptCore protocol directory not found"
             exit 1
           fi
-          
-          if [ -d "webkit-repo/Source/WebInspectorUI/Versions" ]; then
-            echo "✓ WebInspectorUI Versions directory found"
-            ls -la webkit-repo/Source/WebInspectorUI/Versions/ | head -20
-          else
+          echo "✓ JavaScriptCore protocol directory found"
+          mkdir -p protocol
+          cp -r webkit-repo/Source/JavaScriptCore/inspector/protocol/* protocol/
+          echo "✓ Protocol files synced"
+          ls -la protocol/ | head -20
+
+      - name: Verify and sync versions files
+        if: env.SYNC_VERSIONS == 'true'
+        run: |
+          if [ ! -d "webkit-repo/Source/WebInspectorUI/Versions" ]; then
             echo "✗ WebInspectorUI Versions directory not found"
             exit 1
           fi
-
-      - name: Sync JavaScriptCore protocol files
-        run: |
-          mkdir -p protocol
-          cp -r webkit-repo/Source/JavaScriptCore/inspector/protocol/* protocol/
-          echo "✓ JavaScriptCore protocol files synced"
-          ls -la protocol/ | head -20
-
-      - name: Sync WebInspectorUI Versions files
-        run: |
+          echo "✓ WebInspectorUI Versions directory found"
           mkdir -p versions
           cp -r webkit-repo/Source/WebInspectorUI/Versions/* versions/
-          echo "✓ WebInspectorUI Versions files synced"
+          echo "✓ Versions files synced"
           ls -la versions/ | head -20
 
       - name: Commit and push if changed
