@@ -29,31 +29,47 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/WebKit/WebKit.git webkit-repo
 
-      - name: Verify protocol directory exists
+      - name: Verify protocol directories exist
         run: |
+          echo "Checking protocol directories..."
           if [ -d "webkit-repo/Source/JavaScriptCore/inspector/protocol" ]; then
-            echo "✓ Protocol directory found"
+            echo "✓ JavaScriptCore protocol directory found"
             ls -la webkit-repo/Source/JavaScriptCore/inspector/protocol/ | head -20
           else
-            echo "✗ Protocol directory not found"
+            echo "✗ JavaScriptCore protocol directory not found"
+            exit 1
+          fi
+          
+          if [ -d "webkit-repo/Source/WebInspectorUI/Versions" ]; then
+            echo "✓ WebInspectorUI Versions directory found"
+            ls -la webkit-repo/Source/WebInspectorUI/Versions/ | head -20
+          else
+            echo "✗ WebInspectorUI Versions directory not found"
             exit 1
           fi
 
-      - name: Sync files to ./protocol
+      - name: Sync JavaScriptCore protocol files
         run: |
           mkdir -p protocol
           cp -r webkit-repo/Source/JavaScriptCore/inspector/protocol/* protocol/
-          echo "✓ Files synced successfully"
+          echo "✓ JavaScriptCore protocol files synced"
           ls -la protocol/ | head -20
+
+      - name: Sync WebInspectorUI Versions files
+        run: |
+          mkdir -p versions
+          cp -r webkit-repo/Source/WebInspectorUI/Versions/* versions/
+          echo "✓ WebInspectorUI Versions files synced"
+          ls -la versions/ | head -20
 
       - name: Commit and push if changed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git add protocol
+          git add protocol versions
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "Sync WebKit inspector protocol files: $(date -u +'%Y-%m-%d')"
+          git commit -m "Sync WebKit inspector protocol and versions: $(date -u +'%Y-%m-%d')"
           git push origin HEAD
