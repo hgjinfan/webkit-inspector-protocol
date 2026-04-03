@@ -22,19 +22,27 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Clone WebKit and sparse-checkout protocol directory
+      - name: Clone WebKit repository
         run: |
-          # Clone shallow with sparse-checkout for the target path
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/WebKit/WebKit.git webkit
-          cd webkit
-          git sparse-checkout init --cone
-          git sparse-checkout set files/Source/JavaScriptCore/inspector/protocol
-          cd ..
+          git clone --depth 1 https://github.com/WebKit/WebKit.git webkit-repo
+
+      - name: Verify protocol directory exists
+        run: |
+          if [ -d "webkit-repo/files/Source/JavaScriptCore/inspector/protocol" ]; then
+            echo "✓ Protocol directory found"
+            ls -la webkit-repo/files/Source/JavaScriptCore/inspector/protocol/ | head -20
+          else
+            echo "✗ Protocol directory not found"
+            find webkit-repo -type d -name "protocol" 2>/dev/null || true
+            exit 1
+          fi
 
       - name: Sync files to ./protocol
         run: |
-          # Mirror the protocol dir into repo/protocol (delete removed files)
-          rsync -a --delete webkit/files/Source/JavaScriptCore/inspector/protocol/ ./protocol/
+          mkdir -p protocol
+          cp -r webkit-repo/files/Source/JavaScriptCore/inspector/protocol/* protocol/
+          echo "✓ Files synced successfully"
+          ls -la protocol/ | head -20
 
       - name: Commit and push if changed
         env:
